@@ -1,4 +1,10 @@
-import { createUserMutation, getUserQuery } from "@/graphql";
+import { ProjectForm } from "@/common.types";
+import {
+  createProjectMutation,
+  createUserMutation,
+  getUserQuery,
+  projectsQuery,
+} from "@/graphql";
 import { GraphQLClient } from "graphql-request";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -13,7 +19,7 @@ const apiKey = isProduction
 
 const serverUrl = isProduction
   ? process.env.NEXT_PUBLIC_SERVER_URL
-  : "https://localhost:3000";
+  : "http://localhost:3000";
 
 const client = new GraphQLClient(apiUrl);
 
@@ -41,4 +47,69 @@ export const createUser = (name: string, email: string, avatarUrl: string) => {
   };
 
   return makeGrapQLResquest(createUserMutation, variable);
+};
+
+export const fetchToken = async () => {
+  try {
+    const response = await fetch(`${serverUrl}/api/auth/token`);
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch token");
+    }
+
+    return response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const uploadImage = async (imagePath: string) => {
+  try {
+    const response = await fetch(`${serverUrl}/api/upload`, {
+      method: "POST",
+      body: JSON.stringify({ path: imagePath }),
+    });
+
+    return response.json();
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const createNewProject = async (
+  form: ProjectForm,
+  creatorId: string,
+  token: string
+) => {
+  const imageUrl = await uploadImage(form.image);
+
+  if (imageUrl.url) {
+    client.setHeader("Authorization", `Bearer ${token}`);
+
+    const variable = {
+      input: {
+        ...form,
+        image: imageUrl.url,
+        createdBy: {
+          link: creatorId,
+        },
+      },
+    };
+
+    return makeGrapQLResquest(createProjectMutation, variable);
+  }
+};
+
+export const fetchAllProjects = async (
+  category?: string | null,
+  endcursor?: string | null
+) => {
+  client.setHeader("x-api-key", apiKey);
+
+  const validCategory = category || "Frontend";
+
+  return makeGrapQLResquest(projectsQuery, {
+    category: validCategory,
+    endcursor,
+  });
 };
